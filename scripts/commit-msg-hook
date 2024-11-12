@@ -1,16 +1,80 @@
-#!/usr/local/bin/java --source 21
-// TODO: Update path of your Java binary if necessary
+#!/usr/bin/java --source 21
+
+import java.util.*;
+import java.io.*;
+import java.nio.file.Paths;
 
 public class CommitMsgHook {
     public static void main(String[] args) {
         String commitMessage = args[0];
 
-        if (commitMessage.isEmpty()) {
-            System.out.println("Commit message is invalid.");
-            System.exit(1);
-        }
+        if (commitMessage.isEmpty()) invalid();
+		
+		ArrayList<String> types = loadTypes();
+		
+		String[] split = commitMessage.split(": ", 2);
+		if(split.length < 2) invalid();
+		
+		String typescope = split[0];
+		String description = split[1];
+		
+		//remove ! if contained
+		if(typescope.charAt(typescope.length() - 1) == '!')
+				typescope = typescope.substring(0, typescope.length() - 1);
+		
+		split = typescope.split("\\(", 2);
+		String type = "";
+		if(split.length == 2)
+		{
+			String scope = split[1].substring(0, split[1].length() - 1);
+			System.out.println(scope);
+			if(!scope.matches("^([0-9a-zA-Z\\-])*")) invalid();
+		}
+		type = split[0];
+		
+		boolean recognizedType = false;
+		for(String testType : types)
+		{
+			if(type.toLowerCase().equals(testType)) recognizedType = true;
+		}
+		if(!recognizedType) invalid();
+		
+		if(description.equals("")) invalid();
+		
+		String bodyRegex = "(\\n\\n(?!BREAKING CHANGE)[^\\s:#][^\\n:#]*(\\n[^\\n:#]+)*)?";
+		String footerRegex = "(((BREAKING CHANGE|[0-9a-zA-Z\\-]+): *[^#:\\s][^#:]*)|([0-9a-zA-Z\\-]+ #[0-9a-zA-Z\\- ]*))";
+		String footersRegex = "(\\n\\n" + footerRegex + "(\\n" + footerRegex + ")*)?";
+		if(!description.matches("[^\\n]*" + bodyRegex + footersRegex)) invalid();
 
         System.out.println("Commit message is valid.");
         System.exit(0);
     }
+	
+	public static ArrayList<String> loadTypes()
+	{
+		ArrayList<String> types = new ArrayList<String>();
+		
+		File configFile;
+		Scanner scanner;
+		try{
+			configFile = new File(Paths.get("commit-types.config").toAbsolutePath().toString());
+			scanner = new Scanner(configFile);
+		}
+		catch(Exception e){return null;}
+		
+		while(scanner.hasNextLine())
+		{
+			String line = scanner.nextLine().replaceAll("\\s+","");
+			if(line != "") types.add(line);
+		}
+		types.add("feat");
+		types.add("fix");
+		return types;
+	}
+	
+	public static void invalid()
+	{
+		System.out.println("Commit message is invalid.");
+		System.exit(1);
+	}
 }
